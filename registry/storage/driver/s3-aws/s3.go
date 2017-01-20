@@ -102,6 +102,7 @@ type DriverParameters struct {
 	StorageClass                string
 	UserAgent                   string
 	ObjectACL                   string
+	S3Accelerate                bool
 	SessionToken                string
 }
 
@@ -339,6 +340,23 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 		objectACL = objectACLString
 	}
 
+	s3accelerateBool := false
+	s3accelerate := parameters["s3accelerate"]
+	switch s3accelerate := s3accelerate.(type) {
+	case string:
+		b, err := strconv.ParseBool(s3accelerate)
+		if err != nil {
+			return nil, fmt.Errorf("The s3accelerate parameter should be a boolean")
+		}
+		s3accelerateBool = b
+	case bool:
+		s3accelerateBool = s3accelerate
+	case nil:
+		// do nothing
+	default:
+		return nil, fmt.Errorf("The s3accelerate parameter should be a boolean")
+	}
+
 	sessionToken := ""
 
 	params := DriverParameters{
@@ -360,6 +378,7 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 		storageClass,
 		fmt.Sprint(userAgent),
 		objectACL,
+		s3accelerateBool,
 		fmt.Sprint(sessionToken),
 	}
 
@@ -425,6 +444,10 @@ func New(params DriverParameters) (*Driver, error) {
 	if params.RegionEndpoint != "" {
 		awsConfig.WithS3ForcePathStyle(true)
 		awsConfig.WithEndpoint(params.RegionEndpoint)
+	}
+
+	if params.S3Accelerate {
+		awsConfig.WithS3UseAccelerate(true)
 	}
 
 	awsConfig.WithCredentials(creds)
