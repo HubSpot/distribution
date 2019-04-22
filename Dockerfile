@@ -20,4 +20,5 @@ COPY --from=build /go/src/github.com/docker/distribution/bin/registry /bin/regis
 VOLUME ["/var/lib/registry"]
 EXPOSE 5000
 ENTRYPOINT ["registry"]
+RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 CMD ["serve", "/etc/docker/registry/config.yml"]
