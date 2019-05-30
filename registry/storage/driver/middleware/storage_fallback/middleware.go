@@ -22,13 +22,8 @@ func (sd *fallbackStorageDriver) Name() string {
 func (sd *fallbackStorageDriver) GetContent(ctx context.Context, path string) ([]byte, error) {
 	result, err := sd.StorageDriver.GetContent(ctx, path)
 	if err != nil {
-		switch err.(type) {
-		case storagedriver.PathNotFoundError:
-			// don't use fallback
-		default:
-			dcontext.GetLogger(ctx).WithError(err).Warnf("GetContent(%v): falling back to %v", path, sd.Fallback.Name())
-			return sd.Fallback.GetContent(ctx, path)
-		}
+		dcontext.GetLogger(ctx).WithError(err).Warnf("GetContent(%v): falling back to %v", path, sd.Fallback.Name())
+		return sd.Fallback.GetContent(ctx, path)
 	}
 	return result, err
 }
@@ -36,13 +31,8 @@ func (sd *fallbackStorageDriver) GetContent(ctx context.Context, path string) ([
 func (sd *fallbackStorageDriver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
 	result, err := sd.StorageDriver.Reader(ctx, path, offset)
 	if err != nil {
-		switch err.(type) {
-		case storagedriver.PathNotFoundError:
-			// don't use fallback
-		default:
-			dcontext.GetLogger(ctx).WithError(err).Warnf("Reader(%v, %v): falling back to %v", path, offset, sd.Fallback.Name())
-			return sd.Fallback.Reader(ctx, path, offset)
-		}
+		dcontext.GetLogger(ctx).WithError(err).Warnf("Reader(%v, %v): falling back to %v", path, offset, sd.Fallback.Name())
+		return sd.Fallback.Reader(ctx, path, offset)
 	}
 	return result, err
 }
