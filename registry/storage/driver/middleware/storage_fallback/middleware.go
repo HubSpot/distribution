@@ -37,6 +37,15 @@ func (sd *fallbackStorageDriver) Reader(ctx context.Context, path string, offset
 	return result, err
 }
 
+func (sd *fallbackStorageDriver) Stat(ctx context.Context, path string) (storagedriver.FileInfo, error) {
+	result, err := sd.StorageDriver.Stat(ctx, path)
+	if err != nil {
+		dcontext.GetLogger(ctx).WithError(err).Warnf("Stat(%v): falling back to %v", path, sd.Fallback.Name())
+		return sd.Fallback.Stat(ctx, path)
+	}
+	return result, err
+}
+
 func newFallbackStorageDriver(sd storagedriver.StorageDriver, options map[string]interface{}) (storagedriver.StorageDriver, error) {
 	driverName, ok := options["driverName"].(string)
 	if !ok {
