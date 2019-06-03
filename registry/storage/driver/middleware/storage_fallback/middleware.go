@@ -46,6 +46,15 @@ func (sd *fallbackStorageDriver) Stat(ctx context.Context, path string) (storage
 	return result, err
 }
 
+func (sd *fallbackStorageDriver) URLFor(ctx context.Context, path string, options map[string]interface{}) (string, error) {
+	if _, err := sd.StorageDriver.Stat(ctx, path); err != nil {
+		dcontext.GetLogger(ctx).WithError(err).Warnf("URLFor(%v): Stat() failed, falling back to %v", path, sd.Fallback.Name())
+		return sd.Fallback.URLFor(ctx, path, options)
+	}
+
+	return sd.StorageDriver.URLFor(ctx, path, options)
+}
+
 func newFallbackStorageDriver(sd storagedriver.StorageDriver, options map[string]interface{}) (storagedriver.StorageDriver, error) {
 	driverName, ok := options["driverName"].(string)
 	if !ok {
