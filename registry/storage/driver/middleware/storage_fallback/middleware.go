@@ -4,11 +4,21 @@ import (
 	"context"
 	"fmt"
 	dcontext "github.com/docker/distribution/context"
+	prometheus "github.com/docker/distribution/metrics"
 	storagedriver "github.com/docker/distribution/registry/storage/driver"
 	"github.com/docker/distribution/registry/storage/driver/factory"
 	storagemiddleware "github.com/docker/distribution/registry/storage/driver/middleware"
 	"io"
 )
+
+var counter = prometheus.StorageNamespace.NewLabeledCounter("fallback_storage", "Total number of storage operations handled by the storage_fallback middleware", "action", "driver", "fallback")
+
+const (
+	getContentAction = "GetContent"
+	readerAction = "Reader"
+	statAction = "Stat"
+	urlForAction = "URLFor"
+	)
 
 type fallbackStorageDriver struct {
 	storagedriver.StorageDriver
@@ -23,8 +33,11 @@ func (sd *fallbackStorageDriver) GetContent(ctx context.Context, path string) ([
 	result, err := sd.StorageDriver.GetContent(ctx, path)
 	if err != nil {
 		dcontext.GetLogger(ctx).WithError(err).Warnf("GetContent(%v): falling back to %v", path, sd.Fallback.Name())
+		counter.WithValues(getContentAction, sd.Fallback.Name(), "1").Inc()
 		return sd.Fallback.GetContent(ctx, path)
 	}
+
+	counter.WithValues(getContentAction, sd.StorageDriver.Name(), "0").Inc()
 	return result, err
 }
 
@@ -32,8 +45,11 @@ func (sd *fallbackStorageDriver) Reader(ctx context.Context, path string, offset
 	result, err := sd.StorageDriver.Reader(ctx, path, offset)
 	if err != nil {
 		dcontext.GetLogger(ctx).WithError(err).Warnf("Reader(%v, %v): falling back to %v", path, offset, sd.Fallback.Name())
+		counter.WithValues(readerAction, sd.Fallback.Name(), "1").Inc()
 		return sd.Fallback.Reader(ctx, path, offset)
 	}
+
+	counter.WithValues(readerAction, sd.StorageDriver.Name(), "0").Inc()
 	return result, err
 }
 
@@ -41,17 +57,22 @@ func (sd *fallbackStorageDriver) Stat(ctx context.Context, path string) (storage
 	result, err := sd.StorageDriver.Stat(ctx, path)
 	if err != nil {
 		dcontext.GetLogger(ctx).WithError(err).Warnf("Stat(%v): falling back to %v", path, sd.Fallback.Name())
+		counter.WithValues(statAction, sd.Fallback.Name(), "1").Inc()
 		return sd.Fallback.Stat(ctx, path)
 	}
+
+	counter.WithValues(statAction, sd.StorageDriver.Name(), "0").Inc()
 	return result, err
 }
 
 func (sd *fallbackStorageDriver) URLFor(ctx context.Context, path string, options map[string]interface{}) (string, error) {
 	if _, err := sd.StorageDriver.Stat(ctx, path); err != nil {
 		dcontext.GetLogger(ctx).WithError(err).Warnf("URLFor(%v): Stat() failed, falling back to %v", path, sd.Fallback.Name())
+		counter.WithValues(urlForAction, sd.Fallback.Name(), "1").Inc()
 		return sd.Fallback.URLFor(ctx, path, options)
 	}
 
+	counter.WithValues(urlForAction, sd.StorageDriver.Name(), "0").Inc()
 	return sd.StorageDriver.URLFor(ctx, path, options)
 }
 
