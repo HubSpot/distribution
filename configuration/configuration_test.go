@@ -473,6 +473,39 @@ func (suite *ConfigSuite) TestParseEnvMany(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (suite *ConfigSuite) TestEnvSlice(c *C) {
+	endpointsOverride := "override.com"
+	os.Setenv("REGISTRY_NOTIFICATIONS_ENDPOINTS_0_URL", endpointsOverride)
+
+	config, err := Parse(bytes.NewReader([]byte(configYamlV0_1)))
+	c.Assert(err, IsNil)
+	c.Assert(config.Notifications.Endpoints[0].URL, Equals, endpointsOverride)
+}
+
+func (suite *ConfigSuite) TestEnvSliceOOB(c *C) {
+	endpointsOverride := "override.com"
+	os.Setenv("REGISTRY_NOTIFICATIONS_ENDPOINTS_-1_URL", endpointsOverride)
+
+	_, err := Parse(bytes.NewReader([]byte(configYamlV0_1)))
+	c.Assert(err, NotNil)
+}
+
+func (suite *ConfigSuite) TestEnvSliceOOB2(c *C) {
+	endpointsOverride := "override.com"
+	os.Setenv("REGISTRY_NOTIFICATIONS_ENDPOINTS_100_URL", endpointsOverride)
+
+	_, err := Parse(bytes.NewReader([]byte(configYamlV0_1)))
+	c.Assert(err, NotNil)
+}
+
+func (suite *ConfigSuite) TestEnvSliceNotNumber(c *C) {
+	endpointsOverride := "override.com"
+	os.Setenv("REGISTRY_NOTIFICATIONS_ENDPOINTS_A_URL", endpointsOverride)
+
+	_, err := Parse(bytes.NewReader([]byte(configYamlV0_1)))
+	c.Assert(err, NotNil)
+}
+
 func checkStructs(c *C, t reflect.Type, structsChecked map[string]struct{}) {
 	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Map || t.Kind() == reflect.Slice {
 		t = t.Elem()
