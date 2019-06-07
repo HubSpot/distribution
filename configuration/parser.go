@@ -162,8 +162,9 @@ func (p *Parser) overwriteFields(v reflect.Value, fullpath string, path []string
 		v = reflect.Indirect(v)
 	}
 	switch v.Kind() {
+	case reflect.Slice:
 	case reflect.Array:
-		return p.overwriteArray(v, fullpath, path, payload)
+		return p.overwriteArrayOrSlice(v, fullpath, path, payload)
 	case reflect.Struct:
 		return p.overwriteStruct(v, fullpath, path, payload)
 	case reflect.Map:
@@ -183,7 +184,7 @@ func (p *Parser) overwriteFields(v reflect.Value, fullpath string, path []string
 	return nil
 }
 
-func (p *Parser) overwriteArray(v reflect.Value, fullpath string, path []string, payload string) error {
+func (p *Parser) overwriteArrayOrSlice(v reflect.Value, fullpath string, path []string, payload string) error {
 	index, err := strconv.Atoi(path[0])
 	if err != nil {
 		return err
