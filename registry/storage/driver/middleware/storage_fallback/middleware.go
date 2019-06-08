@@ -56,9 +56,13 @@ func (sd *fallbackStorageDriver) URLFor(ctx context.Context, path string, option
 }
 
 func newFallbackStorageDriver(sd storagedriver.StorageDriver, options map[string]interface{}) (storagedriver.StorageDriver, error) {
-	driverName, ok := options["driverName"].(string)
+	driverName, ok := options["driver"].(string)
 	if !ok {
-		return nil, fmt.Errorf("failed to extract driverName from options")
+		// TODO: fully deprecate driverName
+		driverName, ok = options["driverName"].(string)
+	}
+	if !ok {
+		return nil, fmt.Errorf("failed to extract driver or driverName from options")
 	}
 
 	fallback, err := factory.Create(driverName, options)
