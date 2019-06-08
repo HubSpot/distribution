@@ -163,6 +163,7 @@ func (p *Parser) overwriteFields(v reflect.Value, fullpath string, path []string
 	}
 	switch v.Kind() {
 	case reflect.Slice:
+		return p.overwriteArrayOrSlice(v, fullpath, path, payload)
 	case reflect.Array:
 		return p.overwriteArrayOrSlice(v, fullpath, path, payload)
 	case reflect.Struct:
