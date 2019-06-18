@@ -29,6 +29,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	storagedriver "github.com/docker/distribution/registry/storage/driver"
@@ -96,6 +97,7 @@ type driver struct {
 	privateKey    []byte
 	rootDirectory string
 	chunkSize     int
+	pool          *sync.Pool
 }
 
 // Wrapper wraps `driver` with a throttler, ensuring that no more than N
@@ -226,6 +228,11 @@ func New(params driverParameters) (storagedriver.StorageDriver, error) {
 		privateKey:    params.privateKey,
 		client:        params.client,
 		chunkSize:     params.chunkSize,
+		pool: &sync.Pool{
+			New: func() interface{} {
+				return make([]byte, 32*1024*1024)
+			},
+		},
 	}
 
 	return &Wrapper{
@@ -341,7 +348,7 @@ func getObject(client *http.Client, bucket string, name string, offset int64) (*
 
 // Writer returns a FileWriter which will store the content written to it
 // at the location designated by "path" after the call to Commit.
-func (d *driver) Writer(context context.Context, path string, append bool) (storagedriver.FileWriter, error) {
+func (d *driver) OldWriter(context context.Context, path string, append bool) (storagedriver.FileWriter, error) {
 	writer := &writer{
 		client: d.client,
 		bucket: d.bucket,
@@ -356,6 +363,31 @@ func (d *driver) Writer(context context.Context, path string, append bool) (stor
 		}
 	}
 	return writer, nil
+}
+
+func (d *driver) Writer(context context.Context, path string, append bool) (storagedriver.FileWriter, error) {
+	writerFunc := func(start int64) (storagedriver.FileWriter, error) {
+		p := path
+		if start > 0 {
+			p = fmt.Sprintf("%v__%012d", path, start)
+		}
+		return d.OldWriter(context, p, false)
+	}
+
+	w := NewParallelWriter(d, path, writerFunc, 4)
+
+	if append {
+		objects, err := storage.ListObjects(d.context(context), d.bucket, &storage.Query{Prefix: d.pathToKey(path)})
+		if err != nil {
+			return nil, err
+		}
+
+		for i := range objects.Results {
+			w.totalSize += objects.Results[i].Size
+		}
+	}
+
+	return w, nil
 }
 
 type writer struct {
