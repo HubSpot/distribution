@@ -348,7 +348,11 @@ func getObject(client *http.Client, bucket string, name string, offset int64) (*
 
 // Writer returns a FileWriter which will store the content written to it
 // at the location designated by "path" after the call to Commit.
-func (d *driver) OldWriter(context context.Context, path string, append bool) (storagedriver.FileWriter, error) {
+func (d *driver) Writer(context context.Context, path string, append bool) (storagedriver.FileWriter, error) {
+	return d.ParallelWriter(context, path, append)
+}
+
+func (d *driver) SerialWriter(context context.Context, path string, append bool) (storagedriver.FileWriter, error) {
 	writer := &writer{
 		client: d.client,
 		bucket: d.bucket,
@@ -365,13 +369,13 @@ func (d *driver) OldWriter(context context.Context, path string, append bool) (s
 	return writer, nil
 }
 
-func (d *driver) Writer(context context.Context, path string, append bool) (storagedriver.FileWriter, error) {
+func (d *driver) ParallelWriter(context context.Context, path string, append bool) (storagedriver.FileWriter, error) {
 	writerFunc := func(start int64) (storagedriver.FileWriter, error) {
 		p := path
 		if start > 0 {
 			p = fmt.Sprintf("%v__%012d", path, start)
 		}
-		return d.OldWriter(context, p, false)
+		return d.SerialWriter(context, p, false)
 	}
 
 	w := NewParallelWriter(d, path, writerFunc, 4)
