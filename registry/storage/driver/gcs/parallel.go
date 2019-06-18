@@ -121,7 +121,7 @@ type composeRequest struct {
 	SourceObjects []sourceObject `json:"sourceObjects"`
 }
 
-func composeObjects(objects []*storage.Object) *composeRequest {
+func (pw *parallelWriter) composeObjects(destination string, objects []*storage.Object) error {
 	cr := &composeRequest{
 		Kind:          "storage#composeRequest",
 		SourceObjects: make([]sourceObject, 0, len(objects)),
@@ -131,7 +131,18 @@ func composeObjects(objects []*storage.Object) *composeRequest {
 		cr.SourceObjects = append(cr.SourceObjects, sourceObject{objects[i].Name, objects[i].Generation})
 	}
 
-	return cr
+	jsonBytes, err := json.Marshal(cr)
+	if err != nil {
+		return err
+	}
+
+	resp, err := pw.driver.client.Post(fmt.Sprintf("https://www.googleapis.com/storage/v1/b/%v/o/%v/compose", pw.driver.bucket, url.PathEscape(destination)), "application/json", bytes.NewReader(jsonBytes))
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+	return googleapi.CheckMediaResponse(resp)
 }
 
 func (pw *parallelWriter) Commit() error {
@@ -150,18 +161,25 @@ func (pw *parallelWriter) Commit() error {
 		return fmt.Errorf("No objects found for %v", pw.path)
 	} else if len(objects.Results) == 1 {
 		return nil // don't need to compose one object
+	} else if len(objects.Results) <= 32 {
+		return pw.composeObjects(pathKey, objects.Results) // we can fit this into one compose
+	} else {
+		for i := 0; i < len(objects.Results); i += 32 {
+			end := i + 32
+			if end > len(objects.Results) {
+				end = len(objects.Results)
+			}
+			if err := pw.composeObjects(fmt.Sprintf("%v__compose%03d", pathKey, i), objects.Results[i:end]); err != nil {
+				return err
+			}
+		}
+		subObjects, err := storageListObjects(gcsContext, pw.driver.bucket, &storage.Query{Prefix: pathKey + "__compose"})
+		if err != nil {
+			return err
+		}
+		return pw.composeObjects(pathKey, subObjects.Results)
 	}
 
-	jsonBytes, err := json.Marshal(composeObjects(objects.Results))
-	if err != nil {
-		return err
-	}
-	resp, err := pw.driver.client.Post(fmt.Sprintf("https://www.googleapis.com/storage/v1/b/%v/o/%v/compose", pw.driver.bucket, url.PathEscape(pathKey)), "application/json", bytes.NewReader(jsonBytes))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return googleapi.CheckMediaResponse(resp)
 }
 
 type WriterFunc func(int64) (storagedriver.FileWriter, error)

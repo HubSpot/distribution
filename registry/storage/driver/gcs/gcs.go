@@ -230,7 +230,7 @@ func New(params driverParameters) (storagedriver.StorageDriver, error) {
 		chunkSize:     params.chunkSize,
 		pool: &sync.Pool{
 			New: func() interface{} {
-				return make([]byte, 32*1024*1024)
+				return make([]byte, 8*1024*1024)
 			},
 		},
 	}
@@ -378,7 +378,7 @@ func (d *driver) ParallelWriter(context context.Context, path string, append boo
 		return d.SerialWriter(context, p, false)
 	}
 
-	w := NewParallelWriter(d, path, writerFunc, 4)
+	w := NewParallelWriter(d, path, writerFunc, 20)
 
 	if append {
 		objects, err := storage.ListObjects(d.context(context), d.bucket, &storage.Query{Prefix: d.pathToKey(path)})
